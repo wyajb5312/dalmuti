@@ -188,7 +188,8 @@
   .mini-card{
     width:20px; height:28px; border-radius:4px; flex-shrink:0;
     background:var(--parchment); border:1px solid #B9A46B;
-    font-family:'JetBrains Mono',monospace; font-weight:700; font-size:10px; color:#3A2F13;
+    font-family:'JetBrains Mono',monospace; font-weight:700; font-size:9px; color:#3A2F13;
+    line-height:1.05;
     padding:2px 0 0 3px; margin-left:-9px; box-shadow:1px 0 2px rgba(0,0,0,.15);
   }
   .mini-card:first-child{margin-left:0;}
@@ -286,7 +287,7 @@
 
     <div class="field">
       <label for="input-name">닉네임</label>
-      <input id="input-name" maxlength="10" placeholder="예: 대달무티">
+      <input id="input-name" maxlength="20" placeholder="예: 대달무티">
     </div>
 
     <button class="primary" id="btn-create" style="width:100%;">새 방 만들기</button>
@@ -405,6 +406,7 @@ let selected = [];        // 내 손패 중 선택된 카드 인덱스
 let hasJoinedRoom = false; // 방에 참가한 적이 있는지 (추방 감지용)
 let spectateTarget = null; // 관전 중인 대상 uid
 let lastSeenRound = null;  // 라운드가 바뀌면 관전 대상 초기화용
+let taxNoticeDismissedRound = null; // 세금 결과 알림을 닫은 라운드 (다시 안 뜨게)
 
 /* ===================== 유틸 ===================== */
 function $(id){ return document.getElementById(id); }
@@ -480,19 +482,25 @@ function titleFor(index, n){
 function nameOf(u){
   return (room && room.players && room.players[u] && room.players[u].name) || '???';
 }
+const NAME_PALETTE = ['#DE993C','#E8DA31','#5DBF50','#1B90C6','#DF3C3D','#813FBA','#4FBEB5','#DE3D81'];
 function colorForUid(u){
+  if(room && room.players && room.players[u]){
+    const ids = Object.keys(room.players).sort((a,b)=> (room.players[a].joinedAt||0) - (room.players[b].joinedAt||0));
+    const idx = ids.indexOf(u);
+    if(idx>=0) return NAME_PALETTE[idx % NAME_PALETTE.length];
+  }
+  // 플레이어 정보를 아직 모를 때(예: 이미 나간 사람)를 위한 안전한 대체 - 해시 기반으로 팔레트에서 선택
   let hash = 0;
   const s = String(u||'');
   for(let i=0;i<s.length;i++){ hash = (hash*31 + s.charCodeAt(i)) & 0x7fffffff; }
-  const hue = hash % 360;
-  return `hsl(${hue}, 62%, 40%)`;
+  return NAME_PALETTE[hash % NAME_PALETTE.length];
 }
 function revealedStripHtml(u){
   const revMap = (room.revealed && room.revealed[u]) || {};
   const hand = (room.hands && room.hands[u]) || [];
   const cards = hand.filter(c=>revMap[c.id]);
   if(cards.length===0) return '';
-  const inner = cards.map(c=> c.rank===0 ? `<div class="mini-card joker">J</div>` : `<div class="mini-card">${c.rank}</div>`).join('');
+  const inner = cards.map(c=> c.rank===0 ? `<div class="mini-card joker">J</div>` : `<div class="mini-card">${String(c.rank).split('').join('<br>')}</div>`).join('');
   return `<div class="revealed-strip">${inner}</div>`;
 }
 async function toggleReveal(cardId){
@@ -789,8 +797,9 @@ $('btn-start').addEventListener('click', async ()=>{
     lastPlay: null,
     passedUids: [],
     revealed: null,
-    unoUsed: false,
-    unoEvent: null
+    unoUsedBy: null,
+    unoEvent: null,
+    lastTaxResult: null
   });
   if(extraIdx.length){
     pushLog(`여분 카드 ${extraIdx.length}장을 ${extraIdx.map(i=>titleFor(i, order.length)).join(', ')} 등수가 받았습니다.`);
@@ -877,7 +886,7 @@ function renderGame(){
 
   $('end-game-btn').style.display = isHostNow ? 'inline-block' : 'none';
   $('uno-btn').style.display = (room.status==='playing') ? 'flex' : 'none';
-  $('uno-btn').disabled = !!room.unoUsed;
+  $('uno-btn').disabled = !!(room.unoUsedBy && room.unoUsedBy[uid]);
 
   const logEl = $('log-panel'); logEl.innerHTML = '';
   const log = room.log || [];
@@ -893,6 +902,7 @@ function renderGame(){
   if(room.status==='roundEnd'){ renderRoundEnd(); return; }
 
   $('hand-wrap').style.display = 'block';
+  renderTaxResultNotice();
   const myTurn = room.currentTurnUid===uid;
   $('turn-banner').innerHTML = myTurn
     ? `<b>내 차례야!</b> 카드를 선택하고 내거나 패스해줘.`
@@ -1039,12 +1049,13 @@ $('spectate-select').addEventListener('change', (e)=>{
 
 $('uno-btn').addEventListener('click', async ()=>{
   if(!room || !roomCode || room.status!=='playing') return;
-  const unoRef = db.ref(`rooms/${roomCode}/unoUsed`);
+  if(room.unoUsedBy && room.unoUsedBy[uid]) return; // 이미 이번 라운드에 사용함
+  const unoRef = db.ref(`rooms/${roomCode}/unoUsedBy/${uid}`);
   let txResult;
   try{
     txResult = await unoRef.transaction(current => current ? undefined : true);
   }catch(e){ return; }
-  if(!txResult || !txResult.committed) return; // 이미 다른 사람이 먼저 사용함
+  if(!txResult || !txResult.committed) return; // 중복 클릭 방지
   const color = colorForUid(uid);
   await db.ref('rooms/'+roomCode).update({
     unoEvent: { uid, name: myName, color, ts: Date.now() }
@@ -1067,8 +1078,9 @@ $('end-game-btn').addEventListener('click', async ()=>{
     currentLeaderUid: null,
     tax: null,
     revealed: null,
-    unoUsed: null,
-    unoEvent: null
+    unoUsedBy: null,
+    unoEvent: null,
+    lastTaxResult: null
   });
   pushLog(`방장이 게임을 종료했습니다. 대기실로 돌아갑니다.`);
 });
@@ -1235,56 +1247,69 @@ function renderTax(){
   $('overlay-area').appendChild(box);
   $('turn-banner').textContent=''; $('last-play').innerHTML='';
 
-  processTaxAuto(tax);
-
   ['ex1','ex2'].forEach(key=>{
     const ex = tax[key];
     if(!ex) return;
+    if(ex.step==='give' && ex.from===uid){
+      renderTaxGiveUI(key, ex);
+    }
     if(ex.step==='return' && ex.to===uid){
       renderTaxReturnUI(key, ex);
     }
   });
 }
 
-let taxProcessing = false;
-async function processTaxAuto(tax){
-  if(uid!==room.hostUid) return;
-  if(taxProcessing) return;
-  const needsWork = ['ex1','ex2'].some(k=>tax[k] && tax[k].step==='give');
-  if(!needsWork) return;
-  taxProcessing = true;
-  try{
-    await processTaxAutoInner(tax);
-  } finally {
-    taxProcessing = false;
-  }
+/* 상납할 카드(등수가 가장 높은 카드부터, 조커 포함) 순서 계산 */
+function taxGiveOrder(hand){
+  return hand.slice().sort((a,b)=>a.rank-b.rank);
 }
 
-async function processTaxAutoInner(tax){
-  for(const key of ['ex1','ex2']){
-    const ex = tax[key];
-    if(!ex || ex.step!=='give') continue;
-    const fromHand = (room.hands[ex.from]||[]).slice();
-    const sorted = fromHand.map((c,i)=>({c,i})).sort((a,b)=>{
-      if(a.c.rank===0) return -1; if(b.c.rank===0) return 1;
-      return a.c.rank-b.c.rank;
-    });
-    const takeIdx = sorted.slice(0, ex.count).map(x=>x.i);
-    const given = takeIdx.map(i=>fromHand[i]);
-    const remainFrom = fromHand.filter((c,i)=>!takeIdx.includes(i));
-    const newToHand = (room.hands[ex.to]||[]).concat(given);
+function renderTaxGiveUI(key, ex){
+  const raw = room.hands[uid] || [];
+  const toGive = taxGiveOrder(raw).slice(0, ex.count);
+  const revMap = (room.revealed && room.revealed[uid]) || {};
+
+  const box = document.createElement('div');
+  box.className = 'overlay-card';
+  box.innerHTML = `<h3 style="color:var(--gold); margin-bottom:8px;">${escapeHtml(nameOf(ex.to))}님에게 최고 카드 ${ex.count}장을 상납할 차례야</h3><p style="margin-bottom:6px;">아래 카드가 상납돼. 원하면 상납 전에 공개(👁)할 수 있어.</p>`;
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin:10px 0;';
+  toGive.forEach(c=>{
+    const el = makeCardEl(c, false);
+    const isRevealed = !!revMap[c.id];
+    const eyeBtn = document.createElement('button');
+    eyeBtn.type = 'button';
+    eyeBtn.className = 'reveal-toggle' + (isRevealed?' active':'');
+    eyeBtn.textContent = '👁';
+    eyeBtn.title = isRevealed ? '비공개로 전환' : '모두에게 공개';
+    eyeBtn.addEventListener('click', (e)=>{ e.stopPropagation(); toggleReveal(c.id); });
+    el.appendChild(eyeBtn);
+    row.appendChild(el);
+  });
+  box.appendChild(row);
+  const btn = document.createElement('button');
+  btn.className = 'danger'; btn.textContent = '상납하기';
+  btn.addEventListener('click', async ()=>{
+    btn.disabled = true;
+    const currentRaw = room.hands[uid] || [];
+    const currentToGive = taxGiveOrder(currentRaw).slice(0, ex.count);
+    const giveIds = currentToGive.map(c=>c.id);
+    const remainFrom = currentRaw.filter(c=>!giveIds.includes(c.id));
+    const newToHand = (room.hands[ex.to]||[]).concat(currentToGive);
     const updates = {};
-    updates[`hands/${ex.from}`] = remainFrom;
+    updates[`hands/${uid}`] = remainFrom;
     updates[`hands/${ex.to}`] = newToHand;
     updates[`tax/${key}/step`] = 'return';
-    updates[`tax/${key}/given`] = given;
+    updates[`tax/${key}/given`] = currentToGive;
     await db.ref('rooms/'+roomCode).update(updates);
-    pushLog(`${nameOf(ex.from)}님이 ${nameOf(ex.to)}님에게 최고 카드 ${ex.count}장을 상납했습니다.`);
-  }
+    pushLog(`${myName}님이 ${nameOf(ex.to)}님에게 최고 카드 ${ex.count}장을 상납했습니다.`);
+  });
+  box.appendChild(btn);
+  $('overlay-area').appendChild(box);
 }
 
 function renderTaxReturnUI(key, ex){
-  const raw = room.hands[uid] || [];
+  const raw = sortHand(room.hands[uid] || []);
   const box = document.createElement('div');
   box.className = 'overlay-card';
   box.innerHTML = `<h3 style="color:var(--gold); margin-bottom:10px;">${escapeHtml(nameOf(ex.from))}님에게 돌려줄 카드 ${ex.count}장을 선택해줘</h3>`;
@@ -1306,6 +1331,7 @@ function renderTaxReturnUI(key, ex){
   btn.className = 'primary'; btn.textContent = '반환 확정';
   btn.addEventListener('click', async ()=>{
     if(localSel.length!==ex.count){ return; }
+    btn.disabled = true;
     const returned = localSel.map(i=>raw[i]);
     const remain = raw.filter((c,i)=>!localSel.includes(i));
     const fromNewHand = (room.hands[ex.from]||[]).concat(returned);
@@ -1313,6 +1339,7 @@ function renderTaxReturnUI(key, ex){
     updates[`hands/${uid}`] = remain;
     updates[`hands/${ex.from}`] = fromNewHand;
     updates[`tax/${key}/step`] = 'done';
+    updates[`tax/${key}/returned`] = returned;
     await db.ref('rooms/'+roomCode).update(updates);
     pushLog(`${myName}님이 ${nameOf(ex.from)}님에게 카드 ${ex.count}장을 돌려줬습니다.`);
     checkTaxComplete();
@@ -1328,12 +1355,45 @@ async function checkTaxComplete(){
   const ex1Done = tax.ex1 && tax.ex1.step==='done';
   const ex2Done = !tax.ex2 || tax.ex2.step==='done'; // ex2 자체가 없으면(2,3인) 완료로 간주
   if(ex1Done && ex2Done){
+    const lastTaxResult = {};
+    if(tax.ex1) lastTaxResult.ex1 = { from: tax.ex1.from, to: tax.ex1.to, given: tax.ex1.given||[], returned: tax.ex1.returned||[] };
+    if(tax.ex2) lastTaxResult.ex2 = { from: tax.ex2.from, to: tax.ex2.to, given: tax.ex2.given||[], returned: tax.ex2.returned||[] };
     await db.ref('rooms/'+roomCode).update({
-      status:'playing', tax:null,
+      status:'playing', tax:null, lastTaxResult,
       currentLeaderUid: room.order[0], currentTurnUid: room.order[0]
     });
     pushLog(`세금 교환 완료. ${nameOf(room.order[0])}님부터 시작합니다.`);
   }
+}
+
+/* 세금 교환 결과 - 교환 당사자인 두 사람에게만 비공개로 안내 (전체 로그에는 카드 정보 없음) */
+function renderTaxResultNotice(){
+  const lt = room.lastTaxResult;
+  if(!lt) return;
+  if(taxNoticeDismissedRound === room.round) return;
+  const parts = [];
+  ['ex1','ex2'].forEach(key=>{
+    const ex = lt[key];
+    if(!ex) return;
+    if(ex.from===uid){
+      parts.push(`${escapeHtml(nameOf(ex.to))}님에게 ${cardsLabel(ex.given)}을(를) 상납하고, ${cardsLabel(ex.returned)}을(를) 돌려받았어.`);
+    } else if(ex.to===uid){
+      parts.push(`${escapeHtml(nameOf(ex.from))}님에게서 ${cardsLabel(ex.given)}을(를) 받고, ${cardsLabel(ex.returned)}을(를) 돌려줬어.`);
+    }
+  });
+  if(parts.length===0) return; // 이번 교환의 당사자가 아니면 아무것도 표시 안 함
+
+  const box = document.createElement('div');
+  box.className = 'overlay-card';
+  box.style.cssText = 'margin:0 0 16px; padding:14px 18px; max-width:340px; text-align:left;';
+  box.innerHTML = `<h3 style="color:var(--gold); margin-bottom:8px; font-size:14px;">세금 교환 결과 (나만 볼 수 있어)</h3><p style="font-size:13px; line-height:1.6;">${parts.join('<br>')}</p>`;
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.textContent = '닫기';
+  closeBtn.style.marginTop = '8px';
+  closeBtn.addEventListener('click', ()=>{ taxNoticeDismissedRound = room.round; box.remove(); });
+  box.appendChild(closeBtn);
+  $('overlay-area').appendChild(box);
 }
 
 /* ===================== 라운드 종료 ===================== */
@@ -1374,7 +1434,10 @@ async function startNextRound(newOrder){
     passedUids: [],
     currentTurnUid: null,
     currentLeaderUid: null,
-    revealed: null
+    revealed: null,
+    unoUsedBy: null,
+    unoEvent: null,
+    lastTaxResult: null
   };
   if(eligible.length>0){
     updates.status = 'tax_check';
