@@ -107,6 +107,11 @@
   }
   .player-list li:last-child{border-bottom:none;}
   .host-tag{font-size:11px; color:var(--gold); border:1px solid var(--gold); border-radius:4px; padding:2px 6px; margin-left:8px;}
+  .kick-btn{
+    font-size:11.5px; padding:4px 10px; border-radius:6px;
+    border:1px solid var(--line); background:transparent; color:var(--text-dim);
+  }
+  .kick-btn:hover{background:var(--crimson); border-color:var(--crimson); color:#fff;}
   .hint{color:var(--text-dim); font-size:13px; line-height:1.6; margin-top:14px;}
 
   .extra-card-box{margin:18px 0 4px; padding:14px 16px; border:1px solid var(--line); border-radius:10px; background:var(--bg); text-align:left; display:none;}
@@ -326,6 +331,7 @@ let myName = "";
 let roomCode = null;
 let room = null;          // 현재 방 전체 스냅샷
 let selected = [];        // 내 손패 중 선택된 카드 인덱스
+let hasJoinedRoom = false; // 방에 참가한 적이 있는지 (추방 감지용)
 
 /* ===================== 유틸 ===================== */
 function $(id){ return document.getElementById(id); }
@@ -439,6 +445,7 @@ $('btn-create').addEventListener('click', async ()=>{
     players: { [uid]: { name: myName, joinedAt: Date.now() } },
     log: [{text: `${myName}님이 방을 만들었습니다.`, ts: Date.now()}]
   });
+  hasJoinedRoom = true;
   subscribeRoom(code);
   subscribeChat(code);
   showChatUI();
@@ -461,6 +468,7 @@ $('btn-join').addEventListener('click', async ()=>{
   roomCode = code;
   await db.ref(`rooms/${code}/players/${uid}`).set({ name: myName, joinedAt: Date.now() });
   pushLog(`${myName}님이 입장했습니다.`);
+  hasJoinedRoom = true;
   subscribeRoom(code);
   subscribeChat(code);
   showChatUI();
@@ -468,10 +476,27 @@ $('btn-join').addEventListener('click', async ()=>{
 
 function subscribeRoom(code){
   db.ref('rooms/'+code).on('value', snap=>{
-    room = snap.val();
+    const newRoom = snap.val();
+    if(hasJoinedRoom && newRoom && newRoom.players && !newRoom.players[uid]){
+      handleKicked();
+      return;
+    }
+    room = newRoom;
     if(!room) return;
     render();
   });
+}
+
+/* 방장에 의해 추방됐을 때 정리하고 접속 화면으로 되돌림 */
+function handleKicked(){
+  const code = roomCode;
+  hasJoinedRoom = false;
+  db.ref('rooms/'+code).off();
+  db.ref('chats/'+code).off();
+  room = null; roomCode = null;
+  hideChatUI();
+  showScreen('screen-connect');
+  $('connect-error').textContent = "방장이 당신을 방에서 내보냈어.";
 }
 
 /* ===================== 렌더 라우팅 ===================== */
@@ -486,13 +511,24 @@ function renderLobby(){
   $('lobby-code').textContent = roomCode;
   const ul = $('lobby-players'); ul.innerHTML = '';
   const players = room.players || {};
+  const isHost = uid===room.hostUid;
   Object.keys(players).forEach(u=>{
     const li = document.createElement('li');
-    li.innerHTML = `<span>${escapeHtml(players[u].name)}${u===room.hostUid?'<span class="host-tag">방장</span>':''}</span>`;
+    const nameSpan = document.createElement('span');
+    nameSpan.innerHTML = `${escapeHtml(players[u].name)}${u===room.hostUid?'<span class="host-tag">방장</span>':''}`;
+    li.appendChild(nameSpan);
+    if(isHost && u!==uid){
+      const kickBtn = document.createElement('button');
+      kickBtn.className = 'kick-btn';
+      kickBtn.textContent = '내보내기';
+      kickBtn.addEventListener('click', ()=>{
+        if(confirm(`${players[u].name}님을 방에서 내보낼까?`)) kickPlayer(u, players[u].name);
+      });
+      li.appendChild(kickBtn);
+    }
     ul.appendChild(li);
   });
   const count = Object.keys(players).length;
-  const isHost = uid===room.hostUid;
   $('btn-start').style.display = isHost ? 'inline-block' : 'none';
   $('btn-start').disabled = count<4 || count>8;
   $('lobby-hint').textContent = isHost
@@ -548,6 +584,13 @@ function toggleExtraRank(idx, leftover){
 }
 function setExtraRandom(){
   db.ref(`rooms/${roomCode}/extraCardConfig`).set({mode:'random'});
+}
+
+/* 방장이 로비에서 플레이어를 추방 */
+async function kickPlayer(targetUid, targetName){
+  if(uid!==room.hostUid || room.status!=='lobby') return;
+  await db.ref(`rooms/${roomCode}/players/${targetUid}`).remove();
+  pushLog(`${targetName}님이 방장에 의해 방에서 나갔습니다.`);
 }
 
 $('btn-start').addEventListener('click', async ()=>{
@@ -1003,6 +1046,14 @@ let lastChatCount = 0;
 
 function showChatUI(){
   $('chat-toggle').style.display = 'flex';
+}
+function hideChatUI(){
+  $('chat-toggle').style.display = 'none';
+  $('chat-toggle').classList.remove('has-unread');
+  $('chat-panel').style.display = 'none';
+  chatOpen = false;
+  chatMessages = [];
+  lastChatCount = 0;
 }
 function subscribeChat(code){
   db.ref('chats/'+code).limitToLast(50).on('value', snap=>{
