@@ -115,6 +115,11 @@
     border:1px solid var(--line); background:transparent; color:var(--text-dim);
   }
   .kick-btn:hover{background:var(--crimson); border-color:var(--crimson); color:#fff;}
+  .mini-kick-btn{
+    align-self:flex-end; font-size:10.5px; padding:2px 8px; border-radius:5px; margin-top:2px;
+    border:1px solid var(--line); background:transparent; color:var(--text-dim);
+  }
+  .mini-kick-btn:hover{background:var(--crimson); border-color:var(--crimson); color:#fff;}
   .hint{color:var(--text-dim); font-size:13px; line-height:1.6; margin-top:14px;}
 
   .extra-card-box{margin:18px 0 4px; padding:14px 16px; border:1px solid var(--line); border-radius:10px; background:var(--bg); text-align:left; display:none;}
@@ -152,8 +157,10 @@
   .status-pill{font-size:12px; padding:5px 12px; border-radius:20px; background:var(--panel-2); border:1px solid var(--line); color:var(--text-dim);}
   .log-toggle{font-size:12px; padding:5px 12px; border-radius:20px;}
   .log-toggle.active{border-color:var(--gold); color:var(--gold);}
+  .end-game-btn{color:var(--crimson); border-color:var(--crimson);}
+  .end-game-btn:hover:not(:disabled){background:var(--crimson); color:#fff;}
 
-  .table-center{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; gap:18px;}
+  .table-center{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; gap:18px; position:relative;}
   .turn-banner{font-family:'Space Grotesk',sans-serif; font-size:15px; color:var(--text-dim); text-align:center;}
   .turn-banner b{color:var(--gold);}
   .last-play{display:flex; gap:8px; min-height:96px; align-items:center; justify-content:center; flex-wrap:wrap;}
@@ -170,6 +177,22 @@
   }
   .card.joker{background:#E9DBFB; border-color:#B79BDB; color:#4A2E70; font-size:12px; text-align:center;}
   .card .sub{position:absolute; bottom:5px; font-size:8px; color:#786338; letter-spacing:.05em;}
+  .reveal-toggle{
+    position:absolute; top:-7px; right:-7px; width:20px; height:20px; border-radius:50%;
+    border:1px solid var(--line); background:#fff; padding:0; font-size:10px; line-height:1;
+    display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--text-dim);
+  }
+  .reveal-toggle.active{background:var(--gold); border-color:var(--gold); color:#fff;}
+
+  .revealed-strip{display:flex; margin-top:5px;}
+  .mini-card{
+    width:20px; height:28px; border-radius:4px; flex-shrink:0;
+    background:var(--parchment); border:1px solid #B9A46B;
+    font-family:'JetBrains Mono',monospace; font-weight:700; font-size:10px; color:#3A2F13;
+    padding:2px 0 0 3px; margin-left:-9px; box-shadow:1px 0 2px rgba(0,0,0,.15);
+  }
+  .mini-card:first-child{margin-left:0;}
+  .mini-card.joker{background:#E9DBFB; border-color:#B79BDB; color:#4A2E70;}
 
   .hand-wrap{border-top:1px solid var(--line); background:var(--panel); padding:16px 20px 22px;}
   .hand-row{display:flex; gap:8px; flex-wrap:wrap; justify-content:center; min-height:100px; margin-bottom:14px;}
@@ -178,6 +201,8 @@
   .card.pick.selected{transform:translateY(-14px); box-shadow:0 0 0 3px var(--gold), 0 6px 14px rgba(0,0,0,.15);}
   .hand-controls{display:flex; justify-content:center; gap:12px; align-items:center;}
   .hand-controls .sel-info{color:var(--text-dim); font-size:12.5px; align-self:center;}
+  .spectate-bar{display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:10px; font-size:13px; color:var(--text-dim);}
+  .spectate-bar select{padding:5px 10px; border-radius:6px; border:1px solid var(--line); background:#fff; font-family:'Inter',sans-serif; font-size:13px; color:var(--text);}
 
   .log-panel{
     display:none; max-height:160px; overflow-y:auto;
@@ -224,6 +249,30 @@
   .chat-input-row{display:flex; gap:8px; padding:10px 12px; border-top:1px solid var(--line);}
   .chat-input-row input{flex:1;}
   .chat-input-row button{padding:8px 14px;}
+
+  /* ---- UNO ---- */
+  .uno-btn{
+    position:fixed; right:16px; bottom:16px; width:64px; height:64px; border-radius:50%;
+    background:var(--crimson); color:#fff; border:none;
+    font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:13px;
+    cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,.18); z-index:50;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .uno-btn:hover:not(:disabled){background:var(--crimson-bright);}
+  .uno-btn:disabled{opacity:.35; cursor:not-allowed;}
+  .uno-popup{
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%) scale(.4) rotate(-8deg);
+    font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:56px;
+    opacity:0; pointer-events:none; text-shadow:0 4px 18px rgba(0,0,0,.2);
+    animation:unoPop 1.5s ease forwards; z-index:20; white-space:nowrap;
+  }
+  @keyframes unoPop{
+    0%{opacity:0; transform:translate(-50%,-50%) scale(.4) rotate(-8deg);}
+    15%{opacity:1; transform:translate(-50%,-50%) scale(1.15) rotate(4deg);}
+    28%{opacity:1; transform:translate(-50%,-50%) scale(1) rotate(0deg);}
+    78%{opacity:1; transform:translate(-50%,-50%) scale(1) rotate(0deg);}
+    100%{opacity:0; transform:translate(-50%,-50%) scale(.85) rotate(0deg);}
+  }
 </style>
 </head>
 <body>
@@ -265,8 +314,9 @@
     <ul class="player-list" id="lobby-players"></ul>
     <div class="extra-card-box" id="extra-card-section"></div>
     <div class="hint" id="lobby-hint"></div>
-    <div style="margin-top:20px;">
+    <div style="margin-top:20px; display:flex; gap:10px;">
       <button class="primary" id="btn-start" style="display:none;">게임 시작</button>
+      <button class="danger" id="btn-leave-lobby" type="button">대기실 나가기</button>
     </div>
   </div>
 </div>
@@ -279,6 +329,7 @@
       <div class="topbar">
         <span class="code">방 코드 <b id="topbar-code" style="color:var(--gold);"></b> &middot; <span id="topbar-round"></span></span>
         <div class="topbar-right">
+          <button class="log-toggle end-game-btn" id="end-game-btn" type="button" style="display:none;">게임 종료</button>
           <button class="log-toggle" id="log-toggle" type="button">로그</button>
           <span class="status-pill" id="status-pill">대기 중</span>
         </div>
@@ -292,6 +343,10 @@
       </div>
 
       <div class="hand-wrap" id="hand-wrap">
+        <div class="spectate-bar" id="spectate-bar" style="display:none;">
+          <span id="spectate-label"></span>
+          <select id="spectate-select"></select>
+        </div>
         <div class="hand-row" id="hand-row"></div>
         <div class="hand-controls">
           <span class="sel-info" id="sel-info"></span>
@@ -313,6 +368,9 @@
     <button class="primary" id="chat-send">전송</button>
   </div>
 </div>
+
+<!-- ============ UNO 버튼 ============ -->
+<button class="uno-btn" id="uno-btn" type="button" style="display:none;">UNO!</button>
 
 <!-- ============ FIREBASE ============ -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -345,6 +403,8 @@ let roomCode = null;
 let room = null;          // 현재 방 전체 스냅샷
 let selected = [];        // 내 손패 중 선택된 카드 인덱스
 let hasJoinedRoom = false; // 방에 참가한 적이 있는지 (추방 감지용)
+let spectateTarget = null; // 관전 중인 대상 uid
+let lastSeenRound = null;  // 라운드가 바뀌면 관전 대상 초기화용
 
 /* ===================== 유틸 ===================== */
 function $(id){ return document.getElementById(id); }
@@ -363,8 +423,9 @@ function genCode(){
 }
 function buildDeck(){
   const deck = [];
-  for(let r=1;r<=12;r++){ for(let i=0;i<r;i++) deck.push({rank:r}); }
-  deck.push({rank:0}); deck.push({rank:0}); // 조커 2장
+  let cid = 0;
+  for(let r=1;r<=12;r++){ for(let i=0;i<r;i++) deck.push({rank:r, id:'c'+(cid++)}); }
+  deck.push({rank:0, id:'c'+(cid++)}); deck.push({rank:0, id:'c'+(cid++)}); // 조커 2장
   return deck;
 }
 function shuffle(arr){
@@ -411,13 +472,34 @@ function sortHand(hand){
 }
 function titleFor(index, n){
   if(index===0) return '대달무티';
-  if(index===1 && n>1) return '총리대신';
   if(index===n-1) return '대농노';
-  if(index===n-2) return '소농노';
+  if(n>=4 && index===1) return '총리대신';
+  if(n>=4 && index===n-2) return '소농노';
   return `상인 ${index}`;
 }
 function nameOf(u){
   return (room && room.players && room.players[u] && room.players[u].name) || '???';
+}
+function colorForUid(u){
+  let hash = 0;
+  const s = String(u||'');
+  for(let i=0;i<s.length;i++){ hash = (hash*31 + s.charCodeAt(i)) & 0x7fffffff; }
+  const hue = hash % 360;
+  return `hsl(${hue}, 62%, 40%)`;
+}
+function revealedStripHtml(u){
+  const revMap = (room.revealed && room.revealed[u]) || {};
+  const hand = (room.hands && room.hands[u]) || [];
+  const cards = hand.filter(c=>revMap[c.id]);
+  if(cards.length===0) return '';
+  const inner = cards.map(c=> c.rank===0 ? `<div class="mini-card joker">J</div>` : `<div class="mini-card">${c.rank}</div>`).join('');
+  return `<div class="revealed-strip">${inner}</div>`;
+}
+async function toggleReveal(cardId){
+  if(!cardId) return;
+  const isRevealed = !!(room.revealed && room.revealed[uid] && room.revealed[uid][cardId]);
+  const path = `rooms/${roomCode}/revealed/${uid}/${cardId}`;
+  if(isRevealed){ await db.ref(path).remove(); } else { await db.ref(path).set(true); }
 }
 function pushLog(text){
   const logRef = db.ref(`rooms/${roomCode}/log`);
@@ -523,21 +605,33 @@ $('btn-join').addEventListener('click', async ()=>{
   showChatUI();
 });
 
+let leavingVoluntarily = false;
 function subscribeRoom(code){
+  let firstSnap = true;
+  let seenUnoTs = null;
   db.ref('rooms/'+code).on('value', snap=>{
     const newRoom = snap.val();
-    if(hasJoinedRoom && newRoom && newRoom.players && !newRoom.players[uid]){
-      handleKicked();
+    if(hasJoinedRoom && (!newRoom || (newRoom.players && !newRoom.players[uid]))){
+      const wasVoluntary = leavingVoluntarily;
+      leavingVoluntarily = false;
+      handleRemovedFromRoom(wasVoluntary || !newRoom ? null : "방장이 당신을 방에서 내보냈어.");
       return;
     }
     room = newRoom;
     if(!room) return;
+    if(firstSnap){
+      seenUnoTs = room.unoEvent ? room.unoEvent.ts : null;
+      firstSnap = false;
+    } else if(room.unoEvent && room.unoEvent.ts !== seenUnoTs){
+      seenUnoTs = room.unoEvent.ts;
+      showUnoPopup(room.unoEvent);
+    }
     render();
   });
 }
 
-/* 방장에 의해 추방됐을 때 정리하고 접속 화면으로 되돌림 */
-function handleKicked(){
+/* 추방되거나 스스로 방을 나갔을 때 정리하고 접속 화면으로 되돌림 */
+function handleRemovedFromRoom(message){
   const code = roomCode;
   hasJoinedRoom = false;
   clearSession();
@@ -545,8 +639,9 @@ function handleKicked(){
   db.ref('chats/'+code).off();
   room = null; roomCode = null;
   hideChatUI();
+  $('uno-btn').style.display = 'none';
   showScreen('screen-connect');
-  $('connect-error').textContent = "방장이 당신을 방에서 내보냈어.";
+  $('connect-error').textContent = message || '';
 }
 
 /* ===================== 렌더 라우팅 ===================== */
@@ -580,9 +675,9 @@ function renderLobby(){
   });
   const count = Object.keys(players).length;
   $('btn-start').style.display = isHost ? 'inline-block' : 'none';
-  $('btn-start').disabled = count<4 || count>8;
+  $('btn-start').disabled = count<2 || count>8;
   $('lobby-hint').textContent = isHost
-    ? `4~8명이 모이면 게임을 시작할 수 있어 (현재 ${count}명). 친구들에게 초대 코드 "${roomCode}"를 알려줘.`
+    ? `2~8명이 모이면 게임을 시작할 수 있어 (현재 ${count}명). 친구들에게 초대 코드 "${roomCode}"를 알려줘.`
     : `방장이 게임을 시작하기를 기다리는 중이야 (현재 ${count}명).`;
 
   renderExtraCardSection(count);
@@ -590,7 +685,7 @@ function renderLobby(){
 
 function renderExtraCardSection(count){
   const sec = $('extra-card-section');
-  if(count<4 || count>8){ sec.style.display='none'; return; }
+  if(count<2 || count>8){ sec.style.display='none'; return; }
   const base = Math.floor(80/count);
   const leftover = 80 - base*count;
   if(leftover===0){ sec.style.display='none'; return; }
@@ -636,11 +731,46 @@ function setExtraRandom(){
   db.ref(`rooms/${roomCode}/extraCardConfig`).set({mode:'random'});
 }
 
-/* 방장이 로비에서 플레이어를 추방 */
+/* 방장이 플레이어를 추방 (로비 또는 게임 진행 중) */
 async function kickPlayer(targetUid, targetName){
-  if(uid!==room.hostUid || room.status!=='lobby') return;
-  await db.ref(`rooms/${roomCode}/players/${targetUid}`).remove();
-  pushLog(`${targetName}님이 방장에 의해 방에서 나갔습니다.`);
+  if(uid!==room.hostUid) return;
+  if(room.status==='lobby'){
+    await db.ref(`rooms/${roomCode}/players/${targetUid}`).remove();
+    pushLog(`${targetName}님이 방장에 의해 방에서 나갔습니다.`);
+    return;
+  }
+  // 게임 진행 중 추방: 순위/손패에서도 제거하고 턴이 끊기지 않도록 정리
+  const updates = {};
+  updates[`players/${targetUid}`] = null;
+  updates[`hands/${targetUid}`] = null;
+
+  const order = (room.order||[]).filter(u=>u!==targetUid);
+  updates['order'] = order;
+
+  let finishedOrder = (room.finishedOrder||[]).filter(u=>u!==targetUid);
+  updates['finishedOrder'] = finishedOrder;
+
+  if(room.status==='playing'){
+    const hands = {...room.hands, [targetUid]: []};
+    const stillActive = order.filter(u=>(hands[u]||[]).length>0);
+    if(stillActive.length<=1){
+      order.forEach(u=>{ if(!finishedOrder.includes(u)) finishedOrder.push(u); });
+      updates['finishedOrder'] = finishedOrder;
+      updates['status'] = 'roundEnd';
+      updates['currentTurnUid'] = null;
+      updates['currentLeaderUid'] = null;
+    } else if(room.currentLeaderUid===targetUid){
+      const newLeader = nextActiveUid(order, targetUid, hands, []);
+      updates['lastPlay'] = null;
+      updates['passedUids'] = [];
+      updates['currentLeaderUid'] = newLeader;
+      updates['currentTurnUid'] = newLeader;
+    } else if(room.currentTurnUid===targetUid){
+      updates['currentTurnUid'] = nextActiveUid(order, targetUid, hands, []);
+    }
+  }
+  await db.ref('rooms/'+roomCode).update(updates);
+  pushLog(`${targetName}님이 방장에 의해 게임에서 추방되었습니다.`);
 }
 
 $('btn-start').addEventListener('click', async ()=>{
@@ -657,12 +787,49 @@ $('btn-start').addEventListener('click', async ()=>{
     currentLeaderUid: order[0],
     currentTurnUid: order[0],
     lastPlay: null,
-    passedUids: []
+    passedUids: [],
+    revealed: null,
+    unoUsed: false,
+    unoEvent: null
   });
   if(extraIdx.length){
     pushLog(`여분 카드 ${extraIdx.length}장을 ${extraIdx.map(i=>titleFor(i, order.length)).join(', ')} 등수가 받았습니다.`);
   }
   pushLog(`게임이 시작되었습니다. 첫 판은 순위 없이 무작위로 자리를 정합니다.`);
+});
+
+$('btn-leave-lobby').addEventListener('click', async ()=>{
+  if(!room || room.status!=='lobby') return;
+  if(!confirm('대기실에서 나갈까?')) return;
+  const code = roomCode;
+  const leavingName = myName;
+  const players = room.players || {};
+  const remainingUids = Object.keys(players).filter(u=>u!==uid);
+
+  leavingVoluntarily = true;
+
+  if(remainingUids.length===0){
+    // 마지막 사람이 나가면 방 자체를 삭제
+    await db.ref('rooms/'+code).remove();
+    await db.ref('chats/'+code).remove();
+    return;
+  }
+
+  const updates = {};
+  updates[`players/${uid}`] = null;
+  if(room.hostUid===uid){
+    // 가장 먼저 들어온 사람이 새 방장이 됨
+    const newHost = remainingUids.reduce((a,b)=> (players[a].joinedAt <= players[b].joinedAt ? a : b));
+    updates['hostUid'] = newHost;
+  }
+  const logRef = db.ref(`rooms/${code}/log`);
+  const logSnap = await logRef.once('value');
+  let log = logSnap.val() || [];
+  log.push({text:`${leavingName}님이 방을 나갔습니다.`, ts: Date.now()});
+  if(log.length>40) log = log.slice(log.length-40);
+  updates['log'] = log;
+
+  await db.ref('rooms/'+code).update(updates);
 });
 
 /* ===================== 게임 화면 ===================== */
@@ -672,17 +839,31 @@ function renderGame(){
   const hands = room.hands || {};
   const finished = room.finishedOrder || [];
 
+  if(lastSeenRound !== room.round){ spectateTarget = null; lastSeenRound = room.round; }
+
   $('topbar-code').textContent = roomCode;
   $('topbar-round').textContent = `${room.round}라운드`;
 
   const hEl = $('hierarchy'); hEl.innerHTML = '<h3>계급 순위</h3>';
+  const isHostNow = uid===room.hostUid;
   order.forEach((u,i)=>{
     const div = document.createElement('div');
     const isDone = finished.includes(u);
     div.className = 'rank-step' + (u===uid?' me':'') + (room.currentTurnUid===u?' turn':'') + (isDone?' done':'');
     const cardCount = (hands[u]||[]).length;
     const doneTag = isDone ? ' ✓' : '';
-    div.innerHTML = `<span class="title">${titleFor(i,n)}</span><span class="name">${escapeHtml(nameOf(u))}${u===room.hostUid?' 👑':''}</span><span class="cnt">${cardCount}장${doneTag}</span>`;
+    div.innerHTML = `<span class="title">${titleFor(i,n)}</span><span class="name">${escapeHtml(nameOf(u))}${u===room.hostUid?' 👑':''}</span><span class="cnt">${cardCount}장${doneTag}</span>` + revealedStripHtml(u);
+    if(isHostNow && u!==uid){
+      const kickBtn = document.createElement('button');
+      kickBtn.className = 'mini-kick-btn';
+      kickBtn.type = 'button';
+      kickBtn.textContent = '추방';
+      kickBtn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        if(confirm(`${nameOf(u)}님을 게임에서 추방할까?`)) kickPlayer(u, nameOf(u));
+      });
+      div.appendChild(kickBtn);
+    }
     hEl.appendChild(div);
   });
 
@@ -693,6 +874,10 @@ function renderGame(){
     roundEnd: '라운드 종료'
   }[room.status] || room.status;
   $('status-pill').textContent = statusLabel;
+
+  $('end-game-btn').style.display = isHostNow ? 'inline-block' : 'none';
+  $('uno-btn').style.display = (room.status==='playing') ? 'flex' : 'none';
+  $('uno-btn').disabled = !!room.unoUsed;
 
   const logEl = $('log-panel'); logEl.innerHTML = '';
   const log = room.log || [];
@@ -747,6 +932,16 @@ function makeCardEl(card, pickable, idx){
 
 function renderHand(){
   const raw = (room.hands && room.hands[uid]) || [];
+  const isFinished = raw.length===0;
+
+  if(isFinished && room.status==='playing'){
+    renderSpectateView();
+    return;
+  }
+  $('spectate-bar').style.display = 'none';
+  $('btn-play').style.display = '';
+  $('btn-pass').style.display = '';
+
   const order = raw.map((c,i)=>i).sort((a,b)=>{
     const ca=raw[a], cb=raw[b];
     if(ca.rank===0) return 1;
@@ -754,18 +949,57 @@ function renderHand(){
     return ca.rank-cb.rank;
   });
   const row = $('hand-row'); row.innerHTML = '';
-  order.forEach(i=>{ row.appendChild(makeCardEl(raw[i], true, i)); });
+  const revMap = (room.revealed && room.revealed[uid]) || {};
+  order.forEach(i=>{
+    const card = raw[i];
+    const el = makeCardEl(card, true, i);
+    const isRevealed = !!revMap[card.id];
+    const eyeBtn = document.createElement('button');
+    eyeBtn.type = 'button';
+    eyeBtn.className = 'reveal-toggle' + (isRevealed?' active':'');
+    eyeBtn.textContent = '👁';
+    eyeBtn.title = isRevealed ? '비공개로 전환' : '모두에게 공개';
+    eyeBtn.addEventListener('click', (e)=>{ e.stopPropagation(); toggleReveal(card.id); });
+    el.appendChild(eyeBtn);
+    row.appendChild(el);
+  });
 
   const myTurn = room.currentTurnUid===uid && room.status==='playing';
-  const isFinished = raw.length===0;
   $('sel-info').textContent = selected.length
     ? `${selected.length}장 선택됨`
-    : (isFinished ? '카드를 모두 냈어요 — 다음 라운드를 기다려주세요' : '카드를 클릭해서 선택해줘');
+    : '카드를 클릭해서 선택해줘';
 
   const validity = checkPlayValidity(raw, selected);
   $('btn-play').disabled = !(myTurn && validity.ok);
   const leading = !room.lastPlay;
   $('btn-pass').disabled = !(myTurn && !leading);
+}
+
+function renderSpectateView(){
+  $('spectate-bar').style.display = 'flex';
+  $('btn-play').style.display = 'none';
+  $('btn-pass').style.display = 'none';
+  $('sel-info').textContent = '';
+
+  const order = room.order || [];
+  const others = order.filter(u=>u!==uid);
+  if(spectateTarget && !others.includes(spectateTarget)) spectateTarget = null;
+  if(!spectateTarget && others.length>0) spectateTarget = others[0];
+
+  const sel = $('spectate-select');
+  if(others.length===0){
+    sel.style.display = 'none';
+    $('spectate-label').textContent = '관전할 수 있는 다른 플레이어가 없어.';
+  } else {
+    sel.style.display = '';
+    $('spectate-label').textContent = '관전 중:';
+    sel.innerHTML = others.map(u=>`<option value="${u}" ${u===spectateTarget?'selected':''}>${escapeHtml(nameOf(u))} (${(room.hands[u]||[]).length}장)</option>`).join('');
+  }
+
+  const row = $('hand-row'); row.innerHTML = '';
+  if(!spectateTarget) return;
+  const targetHand = sortHand(room.hands[spectateTarget] || []);
+  targetHand.forEach(c=> row.appendChild(makeCardEl(c, false)) );
 }
 
 function toggleSelect(idx){
@@ -796,6 +1030,47 @@ function checkPlayValidity(raw, sel){
 $('log-toggle').addEventListener('click', ()=>{
   const open = $('log-panel').classList.toggle('open');
   $('log-toggle').classList.toggle('active', open);
+});
+
+$('spectate-select').addEventListener('change', (e)=>{
+  spectateTarget = e.target.value;
+  renderHand();
+});
+
+$('uno-btn').addEventListener('click', async ()=>{
+  if(!room || !roomCode || room.status!=='playing') return;
+  const unoRef = db.ref(`rooms/${roomCode}/unoUsed`);
+  let txResult;
+  try{
+    txResult = await unoRef.transaction(current => current ? undefined : true);
+  }catch(e){ return; }
+  if(!txResult || !txResult.committed) return; // 이미 다른 사람이 먼저 사용함
+  const color = colorForUid(uid);
+  await db.ref('rooms/'+roomCode).update({
+    unoEvent: { uid, name: myName, color, ts: Date.now() }
+  });
+  db.ref('chats/'+roomCode).push({ uid, name: myName || '???', text: 'UNO!', ts: Date.now() });
+});
+
+$('end-game-btn').addEventListener('click', async ()=>{
+  if(!room || uid!==room.hostUid) return;
+  if(!confirm('게임을 종료하고 대기실로 돌아갈까? 진행 중인 라운드 정보가 모두 초기화돼.')) return;
+  await db.ref('rooms/'+roomCode).update({
+    status: 'lobby',
+    round: 0,
+    order: null,
+    hands: null,
+    finishedOrder: null,
+    lastPlay: null,
+    passedUids: null,
+    currentTurnUid: null,
+    currentLeaderUid: null,
+    tax: null,
+    revealed: null,
+    unoUsed: null,
+    unoEvent: null
+  });
+  pushLog(`방장이 게임을 종료했습니다. 대기실로 돌아갑니다.`);
 });
 
 $('btn-play').addEventListener('click', async ()=>{
@@ -893,6 +1168,16 @@ function nextActiveUid(order, fromUid, hands, skipList){
 function cardsLabel(cards){
   return cards.map(c=>c.rank===0?'조커':c.rank).join(', ');
 }
+function showUnoPopup(evt){
+  const container = $('table-center');
+  if(!container) return;
+  const el = document.createElement('div');
+  el.className = 'uno-popup';
+  el.textContent = 'UNO!';
+  el.style.color = evt.color || 'var(--crimson)';
+  container.appendChild(el);
+  setTimeout(()=>{ el.remove(); }, 1500);
+}
 
 /* ===================== 혁명 확인 ===================== */
 function renderTaxCheck(){
@@ -929,14 +1214,12 @@ function renderTaxCheck(){
 async function startTaxExchange(){
   const order = room.order; const n = order.length;
   const peon = order[n-1], dalmuti = order[0];
-  const lesserPeon = order[n-2], lesserDalmuti = order[1];
-  await db.ref('rooms/'+roomCode).update({
-    status: 'tax',
-    tax: {
-      ex1: { from: peon, to: dalmuti, count: 2, step: 'give' },
-      ex2: { from: lesserPeon, to: lesserDalmuti, count: 1, step: 'give' }
-    }
-  });
+  const tax = { ex1: { from: peon, to: dalmuti, count: 2, step: 'give' } };
+  if(n>=4){
+    const lesserPeon = order[n-2], lesserDalmuti = order[1];
+    tax.ex2 = { from: lesserPeon, to: lesserDalmuti, count: 1, step: 'give' };
+  }
+  await db.ref('rooms/'+roomCode).update({ status: 'tax', tax });
   pushLog(`세금 교환을 시작합니다.`);
 }
 
@@ -946,7 +1229,9 @@ function renderTax(){
   const tax = room.tax || {};
   const box = document.createElement('div');
   box.className = 'overlay-card';
-  box.innerHTML = `<h2>세금 징수</h2><p>대농노 → 대달무티: 최고 카드 2장 상납 후 대달무티가 2장 반환<br>소농노 → 총리대신: 최고 카드 1장 상납 후 총리대신이 1장 반환</p>`;
+  let desc = '대농노 → 대달무티: 최고 카드 2장 상납 후 대달무티가 2장 반환';
+  if(tax.ex2){ desc += '<br>소농노 → 총리대신: 최고 카드 1장 상납 후 총리대신이 1장 반환'; }
+  box.innerHTML = `<h2>세금 징수</h2><p>${desc}</p>`;
   $('overlay-area').appendChild(box);
   $('turn-banner').textContent=''; $('last-play').innerHTML='';
 
@@ -1039,7 +1324,10 @@ function renderTaxReturnUI(key, ex){
 async function checkTaxComplete(){
   const snap = await db.ref('rooms/'+roomCode+'/tax').once('value');
   const tax = snap.val();
-  if(tax && tax.ex1 && tax.ex1.step==='done' && tax.ex2 && tax.ex2.step==='done'){
+  if(!tax) return;
+  const ex1Done = tax.ex1 && tax.ex1.step==='done';
+  const ex2Done = !tax.ex2 || tax.ex2.step==='done'; // ex2 자체가 없으면(2,3인) 완료로 간주
+  if(ex1Done && ex2Done){
     await db.ref('rooms/'+roomCode).update({
       status:'playing', tax:null,
       currentLeaderUid: room.order[0], currentTurnUid: room.order[0]
@@ -1085,7 +1373,8 @@ async function startNextRound(newOrder){
     lastPlay: null,
     passedUids: [],
     currentTurnUid: null,
-    currentLeaderUid: null
+    currentLeaderUid: null,
+    revealed: null
   };
   if(eligible.length>0){
     updates.status = 'tax_check';
@@ -1093,10 +1382,10 @@ async function startNextRound(newOrder){
   } else {
     updates.status = 'tax';
     const n = newOrder.length;
-    updates.tax = {
-      ex1: { from: newOrder[n-1], to: newOrder[0], count: 2, step: 'give' },
-      ex2: { from: newOrder[n-2], to: newOrder[1], count: 1, step: 'give' }
-    };
+    updates.tax = { ex1: { from: newOrder[n-1], to: newOrder[0], count: 2, step: 'give' } };
+    if(n>=4){
+      updates.tax.ex2 = { from: newOrder[n-2], to: newOrder[1], count: 1, step: 'give' };
+    }
   }
   await db.ref('rooms/'+roomCode).update(updates);
   if(extraIdx.length){
@@ -1131,7 +1420,7 @@ function subscribeChat(code){
 function renderChat(){
   const box = $('chat-messages');
   box.innerHTML = chatMessages.map(m=>
-    `<div class="chat-msg"><b>${escapeHtml(m.name)}</b> ${escapeHtml(m.text)}</div>`
+    `<div class="chat-msg"><b style="color:${m.uid ? colorForUid(m.uid) : 'var(--gold)'}">${escapeHtml(m.name)}</b> ${escapeHtml(m.text)}</div>`
   ).join('');
   box.scrollTop = box.scrollHeight;
   if(!chatOpen && chatMessages.length>lastChatCount){
@@ -1148,7 +1437,7 @@ function sendChat(){
   const input = $('chat-input');
   const text = input.value.trim();
   if(!text || !roomCode) return;
-  db.ref('chats/'+roomCode).push({ name: myName || '???', text, ts: Date.now() });
+  db.ref('chats/'+roomCode).push({ uid, name: myName || '???', text, ts: Date.now() });
   input.value = '';
 }
 $('chat-toggle').addEventListener('click', toggleChatPanel);
