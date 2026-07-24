@@ -159,6 +159,8 @@
   .log-toggle.active{border-color:var(--gold); color:var(--gold);}
   .end-game-btn{color:var(--crimson); border-color:var(--crimson);}
   .end-game-btn:hover:not(:disabled){background:var(--crimson); color:#fff;}
+  .leave-game-btn{color:var(--crimson); border-color:var(--crimson);}
+  .leave-game-btn:hover:not(:disabled){background:var(--crimson); color:#fff;}
 
   .table-center{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; gap:18px; position:relative;}
   .turn-banner{font-family:'Space Grotesk',sans-serif; font-size:15px; color:var(--text-dim); text-align:center;}
@@ -331,6 +333,7 @@
         <span class="code">방 코드 <b id="topbar-code" style="color:var(--gold);"></b> &middot; <span id="topbar-round"></span></span>
         <div class="topbar-right">
           <button class="log-toggle end-game-btn" id="end-game-btn" type="button" style="display:none;">게임 종료</button>
+          <button class="log-toggle leave-game-btn" id="leave-game-btn" type="button">게임 나가기</button>
           <button class="log-toggle" id="log-toggle" type="button">로그</button>
           <span class="status-pill" id="status-pill">대기 중</span>
         </div>
@@ -417,6 +420,88 @@ function showScreen(id){
 function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+
+/* ===================== 사운드 ===================== */
+let audioCtx = null;
+function getAudioCtx(){
+  if(!audioCtx){ audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+  if(audioCtx.state === 'suspended'){ audioCtx.resume(); }
+  return audioCtx;
+}
+document.addEventListener('click', ()=>{ getAudioCtx(); }, {once:true});
+
+function makeNoiseBuffer(ctx, duration){
+  const size = Math.floor(ctx.sampleRate * duration);
+  const buffer = ctx.createBuffer(1, size, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for(let i=0;i<size;i++){ data[i] = Math.random()*2-1; }
+  return buffer;
+}
+function bellNote(ctx, t0, freq, duration, type){
+  const osc = ctx.createOscillator();
+  osc.type = type || 'triangle';
+  osc.frequency.value = freq;
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.linearRampToValueAtTime(0.3, t0+0.008);
+  gain.gain.exponentialRampToValueAtTime(0.001, t0+duration);
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.start(t0); osc.stop(t0+duration+0.02);
+}
+function brassNote(ctx, t0, freq, duration, vibrato){
+  const osc = ctx.createOscillator();
+  osc.type = 'sawtooth';
+  osc.frequency.value = freq;
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 2200;
+  filter.Q.value = 1;
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0, t0);
+  gain.gain.linearRampToValueAtTime(0.28, t0+0.015);
+  gain.gain.setValueAtTime(0.28, t0+Math.max(duration-0.06,0.02));
+  gain.gain.exponentialRampToValueAtTime(0.001, t0+duration);
+  osc.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
+  if(vibrato){
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = 6;
+    const lfoGain = ctx.createGain();
+    lfoGain.gain.value = freq*0.015;
+    lfo.connect(lfoGain); lfoGain.connect(osc.frequency);
+    lfo.start(t0); lfo.stop(t0+duration);
+  }
+  osc.start(t0); osc.stop(t0+duration+0.02);
+}
+function playWhooshSound(){
+  const ctx = getAudioCtx(); const t0 = ctx.currentTime;
+  const noise = ctx.createBufferSource();
+  noise.buffer = makeNoiseBuffer(ctx, 0.14);
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'bandpass'; filter.Q.value = 0.8;
+  filter.frequency.setValueAtTime(700, t0);
+  filter.frequency.exponentialRampToValueAtTime(5000, t0+0.13);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.linearRampToValueAtTime(0.4, t0+0.05);
+  gain.gain.exponentialRampToValueAtTime(0.001, t0+0.14);
+  noise.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
+  noise.start(t0); noise.stop(t0+0.15);
+}
+function playDalmutiTrumpet(){
+  const ctx = getAudioCtx(); const t0 = ctx.currentTime;
+  brassNote(ctx, t0, 261.63, 0.13, false);
+  brassNote(ctx, t0+0.14, 329.63, 0.13, false);
+  brassNote(ctx, t0+0.28, 392.00, 0.4, true);
+}
+function playClearFanfare(){
+  const ctx = getAudioCtx(); const t0 = ctx.currentTime;
+  [523.25, 659.25, 783.99, 1046.50].forEach((f,i)=> bellNote(ctx, t0+i*0.09, f, 0.35, 'triangle'));
+}
+function playCardSound(cards){
+  const hasDalmutiCard = Array.isArray(cards) && cards.some(c=>c.rank===1);
+  if(hasDalmutiCard){ playDalmutiTrumpet(); } else { playWhooshSound(); }
+}
+
 function genCode(){
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let s = "";
@@ -617,6 +702,8 @@ let leavingVoluntarily = false;
 function subscribeRoom(code){
   let firstSnap = true;
   let seenUnoTs = null;
+  let seenLastPlayTs = null;
+  let seenFinishedCount = null;
   db.ref('rooms/'+code).on('value', snap=>{
     const newRoom = snap.val();
     if(hasJoinedRoom && (!newRoom || (newRoom.players && !newRoom.players[uid]))){
@@ -629,10 +716,23 @@ function subscribeRoom(code){
     if(!room) return;
     if(firstSnap){
       seenUnoTs = room.unoEvent ? room.unoEvent.ts : null;
+      seenLastPlayTs = room.lastPlay ? room.lastPlay.ts : null;
+      seenFinishedCount = (room.finishedOrder||[]).length;
       firstSnap = false;
-    } else if(room.unoEvent && room.unoEvent.ts !== seenUnoTs){
-      seenUnoTs = room.unoEvent.ts;
-      showUnoPopup(room.unoEvent);
+    } else {
+      if(room.unoEvent && room.unoEvent.ts !== seenUnoTs){
+        seenUnoTs = room.unoEvent.ts;
+        showUnoPopup(room.unoEvent);
+      }
+      if(room.lastPlay && room.lastPlay.ts && room.lastPlay.ts !== seenLastPlayTs){
+        seenLastPlayTs = room.lastPlay.ts;
+        playCardSound(room.lastPlay.cards);
+      }
+      const fc = (room.finishedOrder||[]).length;
+      if(seenFinishedCount!==null && fc > seenFinishedCount){
+        playClearFanfare();
+      }
+      seenFinishedCount = fc;
     }
     render();
   });
@@ -740,16 +840,9 @@ function setExtraRandom(){
 }
 
 /* 방장이 플레이어를 추방 (로비 또는 게임 진행 중) */
-async function kickPlayer(targetUid, targetName){
-  if(uid!==room.hostUid) return;
-  if(room.status==='lobby'){
-    await db.ref(`rooms/${roomCode}/players/${targetUid}`).remove();
-    pushLog(`${targetName}님이 방장에 의해 방에서 나갔습니다.`);
-    return;
-  }
-  // 게임 진행 중 추방: 순위/손패에서도 제거하고 턴이 끊기지 않도록 정리
+/* 특정 플레이어를 순위/손패에서 제거하고 턴이 끊기지 않도록 정리한 update 객체 생성 (kickPlayer, leaveGame 공용) */
+function buildPlayerRemovalUpdates(targetUid){
   const updates = {};
-  updates[`players/${targetUid}`] = null;
   updates[`hands/${targetUid}`] = null;
 
   const order = (room.order||[]).filter(u=>u!==targetUid);
@@ -777,8 +870,55 @@ async function kickPlayer(targetUid, targetName){
       updates['currentTurnUid'] = nextActiveUid(order, targetUid, hands, []);
     }
   }
+  return updates;
+}
+
+/* 방장이 플레이어를 추방 (로비 또는 게임 진행 중) */
+async function kickPlayer(targetUid, targetName){
+  if(uid!==room.hostUid) return;
+  if(room.status==='lobby'){
+    await db.ref(`rooms/${roomCode}/players/${targetUid}`).remove();
+    pushLog(`${targetName}님이 방장에 의해 방에서 나갔습니다.`);
+    return;
+  }
+  const updates = buildPlayerRemovalUpdates(targetUid);
+  updates[`players/${targetUid}`] = null;
   await db.ref('rooms/'+roomCode).update(updates);
   pushLog(`${targetName}님이 방장에 의해 게임에서 추방되었습니다.`);
+}
+
+/* 게임(로비 제외) 진행 중 스스로 나가기 - 전원 사용 가능, 방장이면 다음 사람에게 위임 */
+async function leaveGame(){
+  if(!room || room.status==='lobby') return;
+  if(!confirm('게임을 나갈까? 지금 순위와 손패 정보에서 완전히 빠지게 돼.')) return;
+  const code = roomCode;
+  const leavingName = myName;
+  const players = room.players || {};
+  const remainingUids = Object.keys(players).filter(u=>u!==uid);
+
+  leavingVoluntarily = true;
+
+  if(remainingUids.length===0){
+    await db.ref('rooms/'+code).remove();
+    await db.ref('chats/'+code).remove();
+    return;
+  }
+
+  const updates = buildPlayerRemovalUpdates(uid);
+  updates[`players/${uid}`] = null;
+  if(room.hostUid===uid){
+    const newHost = remainingUids.reduce((a,b)=> (players[a].joinedAt <= players[b].joinedAt ? a : b));
+    updates['hostUid'] = newHost;
+  }
+
+  const logRef = db.ref(`rooms/${code}/log`);
+  const logSnap = await logRef.once('value');
+  let log = logSnap.val() || [];
+  log.push({text:`${leavingName}님이 게임을 나갔습니다.`, ts: Date.now()});
+  if(log.length>40) log = log.slice(log.length-40);
+  updates['log'] = log;
+
+  await db.ref('rooms/'+code).update(updates);
 }
 
 $('btn-start').addEventListener('click', async ()=>{
@@ -1085,6 +1225,8 @@ $('end-game-btn').addEventListener('click', async ()=>{
   pushLog(`방장이 게임을 종료했습니다. 대기실로 돌아갑니다.`);
 });
 
+$('leave-game-btn').addEventListener('click', leaveGame);
+
 $('btn-play').addEventListener('click', async ()=>{
   const raw = (room.hands && room.hands[uid]) || [];
   const v = checkPlayValidity(raw, selected);
@@ -1095,7 +1237,7 @@ $('btn-play').addEventListener('click', async ()=>{
 
   const updates = {};
   updates[`hands/${uid}`] = newHand;
-  updates['lastPlay'] = { uid, cards: playedCards, count: v.count, rank: v.effRank };
+  updates['lastPlay'] = { uid, cards: playedCards, count: v.count, rank: v.effRank, ts: Date.now() };
   updates['currentLeaderUid'] = uid;
   updates['passedUids'] = [];
 
@@ -1212,12 +1354,16 @@ function renderTaxCheck(){
       pushLog(`${myName}님이 혁명을 선언했습니다! 이번 판은 세금 교환이 없습니다.`);
     };
     box.appendChild(btn);
-  }
-  if(uid===room.hostUid){
+
     const btn2 = document.createElement('button');
     btn2.textContent = '혁명 없음 — 세금 진행'; btn2.style.marginTop='10px'; btn2.style.marginLeft='8px';
     btn2.onclick = ()=> startTaxExchange();
     box.appendChild(btn2);
+  } else if(eligible.length>0){
+    const p = document.createElement('p');
+    p.style.cssText = 'color:var(--text-dim); font-size:13px; margin-top:10px;';
+    p.textContent = `${eligible.map(u=>nameOf(u)).join(', ')}님의 선택을 기다리는 중...`;
+    box.appendChild(p);
   }
   $('overlay-area').appendChild(box);
   $('turn-banner').textContent=''; $('last-play').innerHTML='';
@@ -1250,8 +1396,9 @@ function renderTax(){
   ['ex1','ex2'].forEach(key=>{
     const ex = tax[key];
     if(!ex) return;
-    if(ex.step==='give' && ex.from===uid){
-      renderTaxGiveUI(key, ex);
+    if(ex.step==='give'){
+      if(ex.from===uid){ renderTaxGiveUI(key, ex); }
+      else if(ex.to===uid){ renderTaxGiveWaitingUI(key, ex); }
     }
     if(ex.step==='return' && ex.to===uid){
       renderTaxReturnUI(key, ex);
@@ -1259,19 +1406,33 @@ function renderTax(){
   });
 }
 
-/* 상납할 카드(등수가 가장 높은 카드부터, 조커 포함) 순서 계산 */
+/* 상납할 카드(조커 제외, 등수가 가장 높은 카드부터) 순서 계산 */
 function taxGiveOrder(hand){
-  return hand.slice().sort((a,b)=>a.rank-b.rank);
+  return hand.filter(c=>c.rank!==0).slice().sort((a,b)=>a.rank-b.rank);
+}
+
+/* 상납 전 미리보기로 공개된 카드 - 상납자/수령자 두 사람에게만 보임 */
+function taxGiveRevealedCards(ex){
+  const revMap = ex.giveReveal || {};
+  const hand = (room.hands && room.hands[ex.from]) || [];
+  return hand.filter(c=>revMap[c.id]);
+}
+async function toggleTaxGiveReveal(key, cardId){
+  const ex = room.tax && room.tax[key];
+  if(!ex) return;
+  const isRevealed = !!(ex.giveReveal && ex.giveReveal[cardId]);
+  const path = `rooms/${roomCode}/tax/${key}/giveReveal/${cardId}`;
+  if(isRevealed){ await db.ref(path).remove(); } else { await db.ref(path).set(true); }
 }
 
 function renderTaxGiveUI(key, ex){
   const raw = room.hands[uid] || [];
   const toGive = taxGiveOrder(raw).slice(0, ex.count);
-  const revMap = (room.revealed && room.revealed[uid]) || {};
+  const revMap = ex.giveReveal || {};
 
   const box = document.createElement('div');
   box.className = 'overlay-card';
-  box.innerHTML = `<h3 style="color:var(--gold); margin-bottom:8px;">${escapeHtml(nameOf(ex.to))}님에게 최고 카드 ${ex.count}장을 상납할 차례야</h3><p style="margin-bottom:6px;">아래 카드가 상납돼. 원하면 상납 전에 공개(👁)할 수 있어.</p>`;
+  box.innerHTML = `<h3 style="color:var(--gold); margin-bottom:8px;">${escapeHtml(nameOf(ex.to))}님에게 최고 카드(조커 제외) ${ex.count}장을 상납할 차례야</h3><p style="margin-bottom:6px;">아래 카드가 상납돼. 원하면 상납 전에 ${escapeHtml(nameOf(ex.to))}님에게만 미리 공개(👁)할 수 있어.</p>`;
   const row = document.createElement('div');
   row.style.cssText = 'display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin:10px 0;';
   toGive.forEach(c=>{
@@ -1281,8 +1442,8 @@ function renderTaxGiveUI(key, ex){
     eyeBtn.type = 'button';
     eyeBtn.className = 'reveal-toggle' + (isRevealed?' active':'');
     eyeBtn.textContent = '👁';
-    eyeBtn.title = isRevealed ? '비공개로 전환' : '모두에게 공개';
-    eyeBtn.addEventListener('click', (e)=>{ e.stopPropagation(); toggleReveal(c.id); });
+    eyeBtn.title = isRevealed ? '비공개로 전환' : `${nameOf(ex.to)}님에게만 공개`;
+    eyeBtn.addEventListener('click', (e)=>{ e.stopPropagation(); toggleTaxGiveReveal(key, c.id); });
     el.appendChild(eyeBtn);
     row.appendChild(el);
   });
@@ -1305,6 +1466,30 @@ function renderTaxGiveUI(key, ex){
     pushLog(`${myName}님이 ${nameOf(ex.to)}님에게 최고 카드 ${ex.count}장을 상납했습니다.`);
   });
   box.appendChild(btn);
+  $('overlay-area').appendChild(box);
+}
+
+/* 상납자가 아직 확정하지 않았을 때 수령자가 보는 화면 - 상납자가 공개한 카드만 미리 볼 수 있음 */
+function renderTaxGiveWaitingUI(key, ex){
+  const revealedCards = taxGiveRevealedCards(ex);
+  const box = document.createElement('div');
+  box.className = 'overlay-card';
+  box.innerHTML = `<h3 style="color:var(--gold); margin-bottom:8px;">${escapeHtml(nameOf(ex.from))}님이 카드 ${ex.count}장을 상납할 준비 중이야</h3>`;
+  if(revealedCards.length>0){
+    const p = document.createElement('p');
+    p.style.cssText = 'font-size:13px; color:var(--text-dim); margin-bottom:8px;';
+    p.textContent = `${nameOf(ex.from)}님이 너에게만 미리 공개했어:`;
+    box.appendChild(p);
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex; gap:8px; flex-wrap:wrap; justify-content:center;';
+    revealedCards.forEach(c=> row.appendChild(makeCardEl(c, false)) );
+    box.appendChild(row);
+  } else {
+    const p = document.createElement('p');
+    p.style.cssText = 'font-size:13px; color:var(--text-dim);';
+    p.textContent = '아직 공개된 카드가 없어.';
+    box.appendChild(p);
+  }
   $('overlay-area').appendChild(box);
 }
 
